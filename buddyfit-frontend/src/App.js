@@ -80,7 +80,7 @@ function App() {
   const [weight, setWeight] = useState("");
   const [goal, setGoal] = useState("General Fitness");
   const [activity, setActivity] = useState("Moderate");
-
+const [userId, setUserId] = useState(null);
   // Modal Panel State
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelTitle, setPanelTitle] = useState("");
@@ -95,15 +95,17 @@ const [aiError, setAiError] = useState("");
     }
 
     try {
-      await axios.post("http://localhost:8000/save_profile", {
+      const res=await axios.post("http://127.0.0.1:8000/add_user", {
         name,
+        email: name + "@fitapp.com",
         age,
         gender,
         height,
         weight,
         goal,
-        activity_level: activity,
+        activity: activity,
       });
+      setUserId(res.data.id);
       alert("Profile saved successfully!");
     } catch (err) {
       console.error(err);
@@ -114,10 +116,14 @@ const fetchMealPlan = async () => {
   setLoadingAI(true);
   setAiError("");
   setPanelContent("");
+  if (!userId) {
+  alert("Please save profile first!");
+  return;
+}
 
   try {
     const res = await axios.post(
-      "http://127.0.0.1:8000/ai/meal-plan/1"
+      `http://127.0.0.1:8000/ai/meal-plan/${userId}`
     );
 
     setPanelContent(res.data.meal_plan);
@@ -128,21 +134,44 @@ const fetchMealPlan = async () => {
     setLoadingAI(false);
   }
 };
+const fetchWorkout = async () => {
+  if (!userId) {
+    alert("Please save profile first!");
+    return;
+  }
+
+  setLoadingAI(true);
+  setAiError("");
+  setPanelContent("");
+
+  try {
+    const res = await axios.post(
+      `http://127.0.0.1:8000/ai/workout/${userId}`
+    );
+
+    setPanelContent(res.data.workout);
+  } catch (err) {
+    console.error(err);
+    setAiError("Failed to generate workout");
+  } finally {
+    setLoadingAI(false);
+  }
+};
 
   const openPanel = (type) => {
     if (type === "meal") {
   setPanelTitle("AI Meal Plan");
-  fetchMealPlan();   // 🔥 THIS calls backend
+  fetchMealPlan();   
 }
 
     if (type === "calories") {
       setPanelTitle("Daily Calories");
       setPanelContent("Your calorie target based on TDEE will show here...");
     }
-    if (type === "workout") {
-      setPanelTitle("Workout Routine");
-      setPanelContent("Weekly workout routines will be suggested here...");
-    }
+     if (type === "workout") {
+      setPanelTitle("AI Workout Plan");
+     fetchWorkout();
+     }
     if (type === "bmi") {
       setPanelTitle("BMI & Body Stats");
       setPanelContent("BMI and body health stats will appear here...");
@@ -258,7 +287,7 @@ const fetchMealPlan = async () => {
         <div className="modal-overlay">
           <div className="modal-box">
             <h2>{panelTitle}</h2>
-            {loadingAI && <p>🧠 Generating your meal plan...</p>}
+            {loadingAI && <p>🧠 Generating your {panelTitle.toLowerCase()}...</p>}
 
 {aiError && <p style={{ color: "red" }}>{aiError}</p>}
 
@@ -279,15 +308,10 @@ const fetchMealPlan = async () => {
     {/* MEAL CARDS */}
     {panelContent
       .split("###")
-      .filter(section =>
-        section.toLowerCase().includes("breakfast") ||
-        section.toLowerCase().includes("lunch") ||
-        section.toLowerCase().includes("snack") ||
-        section.toLowerCase().includes("dinner")
-      )
+     .filter(section => section.trim() !== "")
       .map((section, index) => (
         <div key={index} className="meal-card">
-          <h3>{section.split("\n")[0]}</h3>
+          <h3>{section.split("\n")[0].replace("###", "")}</h3>
           <ul>
             {section
               .split("\n")
